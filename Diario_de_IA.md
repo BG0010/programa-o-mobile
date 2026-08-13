@@ -1,5 +1,5 @@
 # Diário de Uso de Inteligência Artificial
-**Aluno:** [Seu Nome Completo]  
+**Aluno:** Vinícius Borges 
 **Disciplina:** Programação Mobile  
 **Professor:** Msc. Marnes Adão Simão Cassule  
 **Instituição:** UNASP-SP  
