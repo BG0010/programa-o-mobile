@@ -5,13 +5,14 @@
 
 ## Estado atual
 
-- **Etapa atual:** Etapas 3 e 4 concluídas (juntas — ver D12) · próxima: Etapa 5 (lembretes, feriados via BrasilAPI/Ktor).
-- **Status geral:** App funcional com login/cadastro local, tarefas e categorias por usuário salvas em Room, tema black.
-- **Progresso:** ~60% de implementação.
+- **Etapa atual:** Etapa 5 implementada e coberta por testes unitários · **falta o teste manual no aparelho** (emulador fechado por falta de memória no computador).
+- **Status geral:** App funcional com login local, tarefas/categorias por usuário (Room), tema black, feriados (BrasilAPI + Ktor, com cache offline) e lembretes (WorkManager).
+- **Progresso:** ~75% de implementação.
 - **Última atualização:** 15/11/2026.
 - **Pendências principais:**
-  - Etapa 5: notificações/lembretes (o interruptor está desabilitado, marcado "disponível em breve"), feriados da BrasilAPI no calendário (Ktor).
-  - Etapa 7: testes instrumentados / mais casos de erro.
+  - Teste manual da Etapa 5 no emulador/celular (roteiro abaixo).
+  - Etapa 6 (Google Agenda/ClickUp) está fora do escopo pela D4 — registrar como não implementada.
+  - Etapa 7: testes finais, README, relatório técnico, APK assinado e ícone (exigências da proposta do trabalho final).
 
 ## Decisões da equipe
 
@@ -32,6 +33,10 @@
 | D14 | 15/11/2026 | **Tema black** (fundo #000000) como padrão; interruptor "Tema black" em Ajustes alterna para o tema claro do protótipo. Preferência salva no DataStore. |
 | D15 | 15/11/2026 | "Urgência automática" desligada → novas tarefas começam com selo manual "Tranquilo". Tarefa pendente vencida sempre aparece como Atrasada. |
 | D16 | 15/11/2026 | Excluir categoria não exclui tarefas: elas ficam "Sem categoria" (FK `SET_NULL`). Nome de categoria único por usuário (sem diferenciar maiúsculas). |
+| D17 | 15/11/2026 | Lembretes com **WorkManager** (horário aproximado; o Android pode atrasar alguns minutos em economia de bateria). Evitado alarme exato, que exige permissão especial. Regra: 30 min antes do horário da tarefa; sem horário, às 9h do dia. |
+| D18 | 15/11/2026 | Notificações **desligadas por padrão**; ao ativar, o app pede a permissão do Android 13+. Antes de notificar, o worker confere no banco se a tarefa ainda existe, está pendente e pertence ao usuário logado. |
+| D19 | 15/11/2026 | Feriados ficam em cache no Room (tabela `holidays`, banco v2 com migração automática): após o primeiro download o calendário mostra feriados sem internet. Falha de rede não bloqueia o calendário (card "Feriados indisponíveis" + "Tentar de novo"). |
+| D20 | 15/11/2026 | Ktor fixado em 3.3.3 e kotlinx-serialization em 1.9.0: são as últimas versões compatíveis com o Kotlin 2.2.10 do projeto. |
 | D6 | 15/11/2026 | API externa aprovada: **BrasilAPI — Feriados nacionais**, consumida com Ktor + corrotinas, exibida no calendário. Gratuita, sem chave/credencial. Implementação prevista na Etapa 5 (com tratamento de falha de rede: o app funciona normalmente sem ela). |
 
 ### Observação sobre D4 × D6
@@ -117,6 +122,25 @@ Manuais no emulador Pixel_8 (instalação limpa):
 
 Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só respondiam ao toque na caixinha (linha inteira agora é tocável); saudação usava nome completo (agora primeiro nome); ícones da barra de status escuros no tema black.
 
+## Etapa 5 — Calendário, lembretes e estatísticas ✅ (código) · ⏳ (teste no aparelho)
+
+- [x] Tarefas no calendário e consulta por data (desde a Etapa 2, agora com dados reais).
+- [x] **Feriados nacionais (BrasilAPI + Ktor)**: `data/remote/BrasilApiService` (timeout 10 s, `expectSuccess`, JSON tolerante a campos novos), `HolidayRepository` com cache no Room e mensagens de erro por tipo (sem internet, timeout, ano inexistente, servidor fora, resposta inválida). Ponto laranja na faixa semanal e card "Feriado nacional" no dia.
+- [x] **Lembretes**: `notifications/ReminderScheduler` (sincroniza agendamentos com tarefas, sessão e preferência), `ReminderWorker` (confere tarefa/usuário antes de notificar), canal de notificação, ícone próprio.
+- [x] Permissão `POST_NOTIFICATIONS` pedida ao ativar; negação explicada; interruptor aparece desligado se a permissão for revogada.
+- [x] Sino do cabeçalho mostra os próximos 5 lembretes e o estado das notificações (ícone diferente quando desativadas).
+- [x] Estatísticas com dados reais (desde a Etapa 4).
+- [ ] **Teste manual no aparelho** — roteiro:
+  1. Atualizar o app por cima da versão anterior → tarefas e contas continuam (migração v1→v2).
+  2. Calendário em 15/11 → card "Proclamação da República"; ponto laranja em 15/11 e 20/11 (Consciência Negra).
+  3. Modo avião + ano ainda não baixado (ex.: avançar até jan/2027) → card "Sem conexão" + "Tentar de novo"; voltar a 2026 → feriados aparecem (cache).
+  4. Ajustes › Notificações → aceitar permissão; criar tarefa para daqui a ~35 min com horário → notificação em ~5 min.
+  5. Negar a permissão → mensagem explicando como ativar.
+  6. Concluir/excluir a tarefa antes do horário → nenhuma notificação.
+  7. Sair da conta → lembretes do usuário não aparecem.
+
+Testes unitários: **15 de 15 passando** (novos: `RemindersTest` 3, `HolidayRepositoryTest` 3 com MockEngine — sucesso + cache, erro 500 sem apagar cache, 404 e sem internet).
+
 ### Ambiente e versões utilizadas
 
 | Item | Versão |
@@ -131,6 +155,9 @@ Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só re
 | Material Icons Extended | 1.7.8 |
 | Room | 2.8.5 (KSP 2.3.14) |
 | DataStore Preferences | 1.2.1 |
+| Ktor client (android, content-negotiation) | 3.3.3 |
+| kotlinx-serialization-json | 1.9.0 |
+| WorkManager | 2.11.2 |
 | JDK do build | JBR 25 do Android Studio |
 
 Se o build falhar em outra máquina por versão, usar como alternativa as versões do arquivo `versios_libs_fails.txt` (AGP 8.13.2, Kotlin 2.0.21, Compose BOM 2024.09.00 etc.).
@@ -158,3 +185,4 @@ Se o build falhar em outra máquina por versão, usar como alternativa as versõ
 | 15/11/2026 | Etapa 1: projeto Android criado (`com.todolist.app`), tema provisório, correções de caminho com acentos, build e testes OK, app aberto no emulador. |
 | 15/11/2026 | Decisões D7–D11. Etapa 2: navegação, componentes e todas as telas principais com dados temporários; revisão visual no emulador e correções. Arquivos de instrução movidos para `Instruções/`. |
 | 15/11/2026 | D12–D16. Etapas 3 e 4: login/cadastro local, Room (usuários, categorias, tarefas, subtarefas), DataStore, CRUD de tarefas e categorias, tema black, testes unitários e manuais. |
+| 15/11/2026 | Commits das Etapas 0–4 na `main` (sem push). D17–D20. Etapa 5: feriados BrasilAPI/Ktor com cache, lembretes WorkManager, permissão de notificação, sino com próximos lembretes, banco v2, 6 testes novos. |

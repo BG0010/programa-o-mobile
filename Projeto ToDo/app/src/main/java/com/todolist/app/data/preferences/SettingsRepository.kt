@@ -19,7 +19,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 data class AppSettings(
     /** Tema black ativado por padrão (pedido da equipe). */
     val darkMode: Boolean = true,
-    val notifications: Boolean = true,
+    /** Desligado até o usuário ativar (e conceder a permissão de notificação). */
+    val notifications: Boolean = false,
     val autoUrgency: Boolean = true,
 )
 
@@ -37,7 +38,7 @@ class SettingsRepository(context: Context) {
     val settings: Flow<AppSettings> = data.map {
         AppSettings(
             darkMode = it[DARK_MODE] ?: true,
-            notifications = it[NOTIFICATIONS] ?: true,
+            notifications = it[NOTIFICATIONS] ?: false,
             autoUrgency = it[AUTO_URGENCY] ?: true,
         )
     }.distinctUntilChanged()

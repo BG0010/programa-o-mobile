@@ -1,5 +1,9 @@
 package com.todolist.app.ui.screens.settings
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +65,7 @@ import com.todolist.app.data.preferences.SettingsRepository
 import com.todolist.app.data.repository.AuthRepository
 import com.todolist.app.domain.AuthValidator
 import com.todolist.app.domain.model.User
+import com.todolist.app.notifications.ReminderNotifications
 import com.todolist.app.ui.BaseViewModel
 import com.todolist.app.ui.CollectMessages
 import com.todolist.app.ui.appContainer
@@ -87,6 +93,8 @@ class SettingsViewModel(
         settingsRepository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     fun setDarkMode(v: Boolean) = launchSafely("Não foi possível salvar a preferência.") { settingsRepository.setDarkMode(v) }
+    fun setNotifications(v: Boolean) = launchSafely("Não foi possível salvar a preferência.") { settingsRepository.setNotifications(v) }
+    fun notifyPermissionDenied() = showMessage("Permissão negada. Ative as notificações do TodoList nas configurações do Android.")
     fun setAutoUrgency(v: Boolean) = launchSafely("Não foi possível salvar a preferência.") { settingsRepository.setAutoUrgency(v) }
 
     fun updateName(name: String) = launchSafely(
@@ -107,6 +115,20 @@ fun SettingsScreen(user: User, onOpenCategories: () -> Unit) {
     var editingName by rememberSaveable { mutableStateOf(false) }
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     CollectMessages(viewModel)
+
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.setNotifications(true) else viewModel.notifyPermissionDenied()
+    }
+    val onNotificationsChange: (Boolean) -> Unit = { enable ->
+        when {
+            !enable -> viewModel.setNotifications(false)
+            ReminderNotifications.hasPermission(context) -> viewModel.setNotifications(true)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    // Se a permissão for revogada no Android, o interruptor aparece desligado.
+    val notificationsOn = settings.notifications && ReminderNotifications.hasPermission(context)
 
     if (editingName) {
         EditNameDialog(
@@ -149,8 +171,8 @@ fun SettingsScreen(user: User, onOpenCategories: () -> Unit) {
                 RowDivider()
                 SwitchRow(
                     Icons.Outlined.NotificationsNone, Color(0xFF7C5CE0),
-                    "Notificações", "Lembretes dos prazos — disponível em breve",
-                    checked = false, enabled = false, onCheckedChange = {},
+                    "Notificações", "Lembrete 30 min antes do prazo (ou às 9h, sem horário)",
+                    checked = notificationsOn, onCheckedChange = onNotificationsChange,
                 )
                 RowDivider()
                 SwitchRow(

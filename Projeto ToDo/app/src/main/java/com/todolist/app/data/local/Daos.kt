@@ -48,6 +48,28 @@ interface CategoryDao {
     suspend fun countWithName(userId: Long, name: String, excludeId: Long): Int
 }
 
+@Dao
+abstract class HolidayDao {
+    @Query("SELECT * FROM holidays WHERE year = :year ORDER BY date")
+    abstract fun observeYear(year: Int): Flow<List<HolidayEntity>>
+
+    @Query("SELECT COUNT(*) FROM holidays WHERE year = :year")
+    abstract suspend fun countYear(year: Int): Int
+
+    @Query("DELETE FROM holidays WHERE year = :year")
+    protected abstract suspend fun deleteYear(year: Int)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    protected abstract suspend fun insertAll(holidays: List<HolidayEntity>)
+
+    /** Substitui o cache de um ano inteiro de uma vez. */
+    @Transaction
+    open suspend fun replaceYear(year: Int, holidays: List<HolidayEntity>) {
+        deleteYear(year)
+        insertAll(holidays)
+    }
+}
+
 /** Todas as consultas filtram por userId: um usuário nunca acessa tarefas de outro. */
 @Dao
 abstract class TaskDao {
@@ -58,6 +80,9 @@ abstract class TaskDao {
     @Transaction
     @Query("SELECT * FROM tasks WHERE id = :id AND userId = :userId")
     abstract fun observe(id: Long, userId: Long): Flow<TaskWithSubtasks?>
+
+    @Query("SELECT * FROM tasks WHERE id = :id AND userId = :userId")
+    abstract suspend fun find(id: Long, userId: Long): TaskEntity?
 
     @Insert
     protected abstract suspend fun insertTask(task: TaskEntity): Long

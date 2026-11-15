@@ -22,10 +22,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Celebration
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,8 +43,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.todolist.app.data.repository.HolidayRepository
 import com.todolist.app.data.repository.TaskRepository
 import com.todolist.app.domain.model.Category
+import com.todolist.app.domain.model.Holiday
 import com.todolist.app.domain.model.Task
 import com.todolist.app.ui.appContainer
 import com.todolist.app.ui.components.AppCard
@@ -53,7 +58,13 @@ import com.todolist.app.util.label
 import com.todolist.app.util.longLabel
 import com.todolist.app.util.monthYearLabel
 import com.todolist.app.util.weekDayShortLabel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -67,14 +78,34 @@ data class CalendarUiState(
     val daysWithTasks: Set<LocalDate> = emptySet(),
     val tasksOfDay: List<Task> = emptyList(),
     val categories: Map<Long, Category> = emptyMap(),
+    val holidayDates: Set<LocalDate> = emptySet(),
+    val holidaysOfDay: List<Holiday> = emptyList(),
+    /** Mensagem quando os feriados não puderam ser baixados (o restante do calendário funciona normalmente). */
+    val holidayError: String? = null,
 )
 
-class CalendarViewModel(repository: TaskRepository) : ViewModel() {
+@OptIn(ExperimentalCoroutinesApi::class)
+class CalendarViewModel(
+    repository: TaskRepository,
+    private val holidayRepository: HolidayRepository,
+) : ViewModel() {
     private val selectedDate = MutableStateFlow(LocalDate.now())
+    private val holidayError = MutableStateFlow<String?>(null)
+
+    /** Anos visíveis na faixa semanal (dois na virada de ano). */
+    private val visibleYears = selectedDate
+        .map { d -> setOf(d.minusDays(3).year, d.plusDays(3).year) }
+        .distinctUntilChanged()
+
+    private val holidays = visibleYears
+        .onEach { years -> years.forEach { refreshHolidays(it) } }
+        .flatMapLatest { years ->
+            combine(years.map(holidayRepository::observe)) { lists -> lists.flatMap { it } }
+        }
 
     val uiState: StateFlow<CalendarUiState> = combine(
-        repository.tasks, repository.categories, selectedDate,
-    ) { tasks, categories, selected ->
+        repository.tasks, repository.categories, selectedDate, holidays, holidayError,
+    ) { tasks, categories, selected, holidays, error ->
         CalendarUiState(
             today = LocalDate.now(),
             selectedDate = selected,
@@ -84,8 +115,24 @@ class CalendarViewModel(repository: TaskRepository) : ViewModel() {
             tasksOfDay = tasks.filter { it.dueDate == selected }
                 .sortedWith(compareBy<Task>({ it.isDone }, { it.dueTime })),
             categories = categories.associateBy { it.id },
+            holidayDates = holidays.mapTo(HashSet()) { it.date },
+            holidaysOfDay = holidays.filter { it.date == selected },
+            holidayError = error,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
+
+    private fun refreshHolidays(year: Int) {
+        viewModelScope.launch {
+            holidayRepository.refresh(year)
+                .onSuccess { holidayError.value = null }
+                .onFailure { holidayError.value = it.message }
+        }
+    }
+
+    fun retryHolidays() {
+        val d = selectedDate.value
+        setOf(d.minusDays(3).year, d.plusDays(3).year).forEach { refreshHolidays(it) }
+    }
 
     fun select(date: LocalDate) { selectedDate.value = date }
     fun previousWeek() { selectedDate.value = selectedDate.value.minusWeeks(1) }
@@ -95,7 +142,9 @@ class CalendarViewModel(repository: TaskRepository) : ViewModel() {
 @Composable
 fun CalendarScreen(onOpenTask: (Long) -> Unit) {
     val container = appContainer()
-    val viewModel: CalendarViewModel = viewModel { CalendarViewModel(container.taskRepository) }
+    val viewModel: CalendarViewModel = viewModel {
+        CalendarViewModel(container.taskRepository, container.holidayRepository)
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
@@ -122,6 +171,10 @@ fun CalendarScreen(onOpenTask: (Long) -> Unit) {
             }
             item { WeekStrip(state, viewModel::select) }
             item { SelectedDayCard(state) }
+            items(state.holidaysOfDay, key = { "holiday-" + it.date }) { holiday -> HolidayCard(holiday) }
+            state.holidayError?.let { message ->
+                item { HolidayErrorCard(message, onRetry = viewModel::retryHolidays) }
+            }
             item {
                 Column {
                     Text("Tarefas do dia", style = MaterialTheme.typography.titleMedium)
@@ -149,6 +202,7 @@ private fun WeekStrip(state: CalendarUiState, onSelect: (LocalDate) -> Unit) {
             state.week.forEach { date ->
                 val selected = date == state.selectedDate
                 val hasTasks = date in state.daysWithTasks
+                val isHoliday = date in state.holidayDates
                 val contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(
                     Modifier
@@ -156,7 +210,10 @@ private fun WeekStrip(state: CalendarUiState, onSelect: (LocalDate) -> Unit) {
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
                         .clickable { onSelect(date) }
-                        .semantics { contentDescription = date.longLabel() + if (hasTasks) ", com tarefas" else "" }
+                        .semantics {
+                            contentDescription = date.longLabel() +
+                                (if (isHoliday) ", feriado" else "") + (if (hasTasks) ", com tarefas" else "")
+                        }
                         .padding(vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -168,18 +225,22 @@ private fun WeekStrip(state: CalendarUiState, onSelect: (LocalDate) -> Unit) {
                         color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Box(
-                        Modifier
-                            .size(4.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when {
-                                    !hasTasks -> Color.Transparent
-                                    selected -> Color.White
-                                    else -> MaterialTheme.colorScheme.primary
-                                },
-                            ),
-                    )
+                    // Ponto azul = tarefas; ponto laranja = feriado.
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Box(
+                            Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        !hasTasks -> Color.Transparent
+                                        selected -> Color.White
+                                        else -> MaterialTheme.colorScheme.primary
+                                    },
+                                ),
+                        )
+                        if (isHoliday) Box(Modifier.size(4.dp).clip(CircleShape).background(HolidayColor))
+                    }
                 }
             }
         }
@@ -249,6 +310,42 @@ private fun DayTaskRow(task: Task, category: Category?, today: LocalDate, onClic
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+private val HolidayColor = Color(0xFFF59E0B)
+
+@Composable
+private fun HolidayCard(holiday: Holiday) {
+    AppCard(
+        Modifier.fillMaxWidth(),
+        containerColor = HolidayColor.copy(alpha = 0.12f),
+        borderColor = HolidayColor.copy(alpha = 0.4f),
+        contentPadding = 12,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Outlined.Celebration, tint = HolidayColor, size = 40)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Feriado nacional", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(holiday.name, style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HolidayErrorCard(message: String, onRetry: () -> Unit) {
+    AppCard(Modifier.fillMaxWidth(), contentPadding = 12) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Outlined.CloudOff, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Feriados indisponíveis", style = MaterialTheme.typography.titleSmall)
+                Text(message, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(onClick = onRetry) { Text("Tentar de novo") }
         }
     }
 }

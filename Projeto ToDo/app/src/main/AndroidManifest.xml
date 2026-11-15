@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Feriados nacionais (BrasilAPI). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lembretes de tarefas (Android 13+ pede permissão em tempo de execução). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".TodoListApplication"
         android:allowBackup="true"

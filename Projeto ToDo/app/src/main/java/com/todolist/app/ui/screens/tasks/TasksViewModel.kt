@@ -1,7 +1,9 @@
 package com.todolist.app.ui.screens.tasks
 
 import androidx.lifecycle.viewModelScope
+import com.todolist.app.data.preferences.SettingsRepository
 import com.todolist.app.data.repository.TaskRepository
+import com.todolist.app.domain.Reminders
 import com.todolist.app.domain.model.Category
 import com.todolist.app.domain.model.Task
 import com.todolist.app.domain.model.Urgency
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 enum class TaskFilter(val label: String, val sectionTitle: String) {
     ALL("Todas", "Próximas tarefas"),
@@ -32,17 +35,23 @@ data class TasksUiState(
     val urgentCount: Int = 0,
     val todayTotal: Int = 0,
     val todayDone: Int = 0,
+    val notificationsEnabled: Boolean = false,
+    /** Próximos lembretes (tarefa + horário do aviso). */
+    val upcomingReminders: List<Pair<Task, LocalDateTime>> = emptyList(),
 ) {
     val todayPending: Int get() = todayTotal - todayDone
     val todayProgress: Float get() = if (todayTotal == 0) 0f else todayDone.toFloat() / todayTotal
 }
 
-class TasksViewModel(private val repository: TaskRepository) : BaseViewModel() {
+class TasksViewModel(
+    private val repository: TaskRepository,
+    settings: SettingsRepository,
+) : BaseViewModel() {
 
     private val query = MutableStateFlow("")
     private val filter = MutableStateFlow(TaskFilter.ALL)
 
-    val uiState: StateFlow<TasksUiState> = combine(
+    private val baseState = combine(
         repository.tasks, repository.categories, query, filter,
     ) { tasks, categories, query, filter ->
         val today = LocalDate.now()
@@ -75,7 +84,12 @@ class TasksViewModel(private val repository: TaskRepository) : BaseViewModel() {
             urgentCount = tasks.count(isUrgent),
             todayTotal = todayTasks.size,
             todayDone = todayTasks.count { it.isDone },
+            upcomingReminders = Reminders.upcoming(tasks, LocalDateTime.now()).take(5),
         )
+    }
+
+    val uiState: StateFlow<TasksUiState> = combine(baseState, settings.settings) { state, s ->
+        state.copy(notificationsEnabled = s.notifications)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TasksUiState())
 
     fun onQueryChange(value: String) { query.value = value }

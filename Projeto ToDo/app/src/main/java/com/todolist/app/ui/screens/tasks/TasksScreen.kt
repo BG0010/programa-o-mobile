@@ -2,6 +2,7 @@ package com.todolist.app.ui.screens.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,8 +26,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -35,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,17 +62,36 @@ import com.todolist.app.ui.theme.Blue500
 import com.todolist.app.ui.theme.Blue600
 import com.todolist.app.ui.theme.UrgentRed
 import com.todolist.app.ui.theme.UrgentRedBg
+import com.todolist.app.util.label
 import com.todolist.app.util.longLabel
+import com.todolist.app.util.shortLabel
 
 @Composable
 fun TasksScreen(
     onOpenTask: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
     userName: String?,
 ) {
     val container = appContainer()
-    val viewModel: TasksViewModel = viewModel { TasksViewModel(container.taskRepository) }
+    val viewModel: TasksViewModel = viewModel { TasksViewModel(container.taskRepository, container.settingsRepository) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<Task?>(null) }
+    var showReminders by remember { mutableStateOf(false) }
+
+    if (showReminders) {
+        RemindersDialog(
+            state = state,
+            onOpenTask = {
+                showReminders = false
+                onOpenTask(it)
+            },
+            onOpenSettings = {
+                showReminders = false
+                onOpenSettings()
+            },
+            onDismiss = { showReminders = false },
+        )
+    }
     CollectMessages(viewModel)
 
     pendingDelete?.let { task ->
@@ -89,7 +112,7 @@ fun TasksScreen(
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { TasksHeader(state, userName) }
+        item { TasksHeader(state, userName, onBellClick = { showReminders = true }) }
         item {
             SearchField(
                 query = state.query,
@@ -151,7 +174,7 @@ fun TasksScreen(
 }
 
 @Composable
-private fun TasksHeader(state: TasksUiState, userName: String?) {
+private fun TasksHeader(state: TasksUiState, userName: String?, onBellClick: () -> Unit) {
     val shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
     Column(
         Modifier
@@ -174,11 +197,16 @@ private fun TasksHeader(state: TasksUiState, userName: String?) {
                 Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                    .clickable(onClickLabel = "Ver próximos lembretes", onClick = onBellClick),
                 contentAlignment = Alignment.Center,
             ) {
-                // Etapa 5: passará a abrir os lembretes.
-                Icon(Icons.Outlined.NotificationsNone, contentDescription = "Notificações", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(
+                    if (state.notificationsEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                    contentDescription = if (state.notificationsEnabled) "Lembretes ativados" else "Lembretes desativados",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -293,4 +321,53 @@ private fun FilterRow(selected: TaskFilter, urgentCount: Int, onSelect: (TaskFil
             )
         }
     }
+}
+
+@Composable
+private fun RemindersDialog(
+    state: TasksUiState,
+    onOpenTask: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Próximos lembretes") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!state.notificationsEnabled) {
+                    Text(
+                        "As notificações estão desativadas. Ative em Ajustes para receber os avisos.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (state.upcomingReminders.isEmpty()) {
+                    Text("Nenhum lembrete pendente.", style = MaterialTheme.typography.bodyMedium)
+                }
+                state.upcomingReminders.forEach { (task, at) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onOpenTask(task.id) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(task.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                            Text(
+                                "Aviso em " + at.toLocalDate().shortLabel() + " às " + at.toLocalTime().label(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onOpenSettings) { Text("Ajustes") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Fechar") } },
+    )
 }

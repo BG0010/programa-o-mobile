@@ -77,6 +77,14 @@ data class SubtaskEntity(
     val position: Int,
 )
 
+/** Feriado nacional em cache (dados da BrasilAPI), compartilhado por todos os usuários. */
+@Entity(tableName = "holidays", indices = [Index("year")])
+data class HolidayEntity(
+    @PrimaryKey val date: LocalDate,
+    val year: Int,
+    val name: String,
+)
+
 /** Tarefa com suas subtarefas, carregada em uma única consulta pelo Room. */
 data class TaskWithSubtasks(
     @Embedded val task: TaskEntity,

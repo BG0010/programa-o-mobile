@@ -102,7 +102,19 @@ fun TodoNavHost(
             modifier = if (isTopLevel) Modifier.padding(bottom = padding.calculateBottomPadding()) else Modifier,
         ) {
             val openTask: (Long) -> Unit = { navController.navigate(Routes.taskDetail(it)) }
-            composable(Routes.TASKS) { TasksScreen(onOpenTask = openTask, userName = user.name) }
+            composable(Routes.TASKS) {
+                TasksScreen(
+                    onOpenTask = openTask,
+                    onOpenSettings = {
+                        navController.navigate(Routes.SETTINGS) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    userName = user.name,
+                )
+            }
             composable(Routes.CALENDAR) { CalendarScreen(onOpenTask = openTask) }
             composable(Routes.STATISTICS) { StatisticsScreen() }
             composable(Routes.SETTINGS) {
