@@ -5,12 +5,12 @@
 
 ## Estado atual
 
-- **Etapa atual:** Etapa 5 implementada e coberta por testes unitários · **falta o teste manual no aparelho** (emulador fechado por falta de memória no computador).
+- **Etapa atual:** Etapa 5 implementada; testes no emulador quase completos (falta confirmar a chegada da notificação e o teste de troca de usuário — ver roteiro).
 - **Status geral:** App funcional com login local, tarefas/categorias por usuário (Room), tema black, feriados (BrasilAPI + Ktor, com cache offline) e lembretes (WorkManager).
 - **Progresso:** ~75% de implementação.
 - **Última atualização:** 15/11/2026.
 - **Pendências principais:**
-  - Teste manual da Etapa 5 no emulador/celular (roteiro abaixo).
+  - Confirmar no emulador: notificação às 20:30 (UTC) da tarefa "Lembrete de teste" e ausência da tarefa concluída; teste de sair da conta (passos 4, 6 e 7).
   - Etapa 6 (Google Agenda/ClickUp) está fora do escopo pela D4 — registrar como não implementada.
   - Etapa 7: testes finais, README, relatório técnico, APK assinado e ícone (exigências da proposta do trabalho final).
 
@@ -37,6 +37,7 @@
 | D18 | 15/11/2026 | Notificações **desligadas por padrão**; ao ativar, o app pede a permissão do Android 13+. Antes de notificar, o worker confere no banco se a tarefa ainda existe, está pendente e pertence ao usuário logado. |
 | D19 | 15/11/2026 | Feriados ficam em cache no Room (tabela `holidays`, banco v2 com migração automática): após o primeiro download o calendário mostra feriados sem internet. Falha de rede não bloqueia o calendário (card "Feriados indisponíveis" + "Tentar de novo"). |
 | D20 | 15/11/2026 | Ktor fixado em 3.3.3 e kotlinx-serialization em 1.9.0: são as últimas versões compatíveis com o Kotlin 2.2.10 do projeto. |
+| D21 | 15/11/2026 | Confirmado pela equipe: a **BrasilAPI (feriados) é a API externa da entrega final** (requisito "API externa com Ktor e corrotinas" da proposta). |
 | D6 | 15/11/2026 | API externa aprovada: **BrasilAPI — Feriados nacionais**, consumida com Ktor + corrotinas, exibida no calendário. Gratuita, sem chave/credencial. Implementação prevista na Etapa 5 (com tratamento de falha de rede: o app funciona normalmente sem ela). |
 
 ### Observação sobre D4 × D6
@@ -130,14 +131,14 @@ Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só re
 - [x] Permissão `POST_NOTIFICATIONS` pedida ao ativar; negação explicada; interruptor aparece desligado se a permissão for revogada.
 - [x] Sino do cabeçalho mostra os próximos 5 lembretes e o estado das notificações (ícone diferente quando desativadas).
 - [x] Estatísticas com dados reais (desde a Etapa 4).
-- [ ] **Teste manual no aparelho** — roteiro:
-  1. Atualizar o app por cima da versão anterior → tarefas e contas continuam (migração v1→v2).
-  2. Calendário em 15/11 → card "Proclamação da República"; ponto laranja em 15/11 e 20/11 (Consciência Negra).
-  3. Modo avião + ano ainda não baixado (ex.: avançar até jan/2027) → card "Sem conexão" + "Tentar de novo"; voltar a 2026 → feriados aparecem (cache).
-  4. Ajustes › Notificações → aceitar permissão; criar tarefa para daqui a ~35 min com horário → notificação em ~5 min.
-  5. Negar a permissão → mensagem explicando como ativar.
-  6. Concluir/excluir a tarefa antes do horário → nenhuma notificação.
-  7. Sair da conta → lembretes do usuário não aparecem.
+- [ ] **Teste manual no emulador (15/11/2026)**:
+  1. ✅ Migração v1→v2: banco montado no formato v1 (a partir de `schemas/1.json`) com conta, categorias, tarefa e subtarefa → após abrir a versão nova, login funciona e todos os dados estão presentes. (Os dados antigos do emulador tinham sido perdidos quando o sistema fechou o emulador por falta de memória.)
+  2. ✅ Feriados reais da BrasilAPI: "Proclamação da República" em 15/11 e "Dia da consciência negra" em 20/11, com ponto laranja na faixa semanal.
+  3. ✅ Modo avião: jan/2027 (não baixado) → "Sem conexão com a internet" + "Tentar de novo"; nov/2026 continua mostrando feriados (cache); internet de volta + "Tentar de novo" → "Confraternização mundial" em 01/01/2027.
+  4. ⏳ Permissão concedida, tarefa "Lembrete de teste" às 21:00 → sino mostra "Aviso às 20:30". Falta confirmar a chegada da notificação.
+  5. ✅ Permissão negada → "Permissão negada. Ative as notificações do TodoList nas configurações do Android."; segunda tentativa, permitindo → interruptor ligado.
+  6. ⏳ Tarefa concluída antes do aviso some da lista de próximos lembretes; falta confirmar que não gera notificação.
+  7. ⏳ Sair da conta → lembretes não disparam (a testar).
 
 Testes unitários: **15 de 15 passando** (novos: `RemindersTest` 3, `HolidayRepositoryTest` 3 com MockEngine — sucesso + cache, erro 500 sem apagar cache, 404 e sem internet).
 
@@ -186,3 +187,4 @@ Se o build falhar em outra máquina por versão, usar como alternativa as versõ
 | 15/11/2026 | Decisões D7–D11. Etapa 2: navegação, componentes e todas as telas principais com dados temporários; revisão visual no emulador e correções. Arquivos de instrução movidos para `Instruções/`. |
 | 15/11/2026 | D12–D16. Etapas 3 e 4: login/cadastro local, Room (usuários, categorias, tarefas, subtarefas), DataStore, CRUD de tarefas e categorias, tema black, testes unitários e manuais. |
 | 15/11/2026 | Commits das Etapas 0–4 na `main` (sem push). D17–D20. Etapa 5: feriados BrasilAPI/Ktor com cache, lembretes WorkManager, permissão de notificação, sino com próximos lembretes, banco v2, 6 testes novos. |
+| 15/11/2026 | Push das Etapas 0–5 para o GitHub. D21. Testes da Etapa 5 no emulador (passos 1, 2, 3 e 5 aprovados; 4, 6 e 7 pendentes). |
