@@ -78,4 +78,18 @@ class HolidayRepositoryTest {
         val offline = repo(FakeHolidayDao(), MockEngine { throw IOException("sem rede") }).refresh(2026)
         assertEquals("Sem conexão com a internet.", offline.exceptionOrNull()?.message)
     }
+
+    @Test
+    fun `chamada travada (como DNS sem resposta) desiste no prazo com mensagem`() = runBlocking {
+        // Thread.sleep bloqueia a thread e ignora o cancelamento, como a consulta de DNS do sistema.
+        val stuck = MockEngine { Thread.sleep(3_000); respond(json, HttpStatusCode.OK) }
+        val repository = HolidayRepository(FakeHolidayDao(), BrasilApiService(stuck), deadlineMillis = 300)
+
+        val start = System.currentTimeMillis()
+        val result = repository.refresh(2026)
+        val elapsed = System.currentTimeMillis() - start
+
+        assertEquals("A BrasilAPI demorou para responder.", result.exceptionOrNull()?.message)
+        assertTrue("esperou ${elapsed}ms", elapsed < 2_000)
+    }
 }

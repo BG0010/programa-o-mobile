@@ -5,13 +5,15 @@
 
 ## Estado atual
 
-- **Etapa atual:** Etapa 5 concluída e testada no emulador (7 de 7 cenários aprovados). Próxima: Etapa 7 (entrega final).
+- **Etapa atual:** Etapa 7 concluída (testes finais, correções, ícone, APK assinado e README). Próximo: verificar a Etapa 6 e seguir para a Etapa 8 (documentação final).
 - **Status geral:** App funcional com login local, tarefas/categorias por usuário (Room), tema black, feriados (BrasilAPI + Ktor, com cache offline) e lembretes (WorkManager).
-- **Progresso:** ~75% de implementação.
+- **Progresso:** ~90% (implementação e testes concluídos; falta a documentação final).
 - **Última atualização:** 16/11/2026.
 - **Pendências principais:**
   - Etapa 6 (Google Agenda/ClickUp) está fora do escopo pela D4 — registrar como não implementada.
-  - Etapa 7: testes finais, README, relatório técnico, APK assinado e ícone (exigências da proposta do trabalho final).
+  - Etapa 8: `DOCUMENTACAO_FINAL.md` e relatório técnico (3 a 6 páginas, exigido pela proposta).
+  - Diário de IA consolidado (`Diario_de_IA.md` na raiz do repositório) — responsabilidade da equipe.
+  - Guardar uma cópia de segurança da chave de assinatura (`%USERPROFILE%\.todolist-keys\`).
 
 ## Decisões da equipe
 
@@ -37,6 +39,9 @@
 | D19 | 15/11/2026 | Feriados ficam em cache no Room (tabela `holidays`, banco v2 com migração automática): após o primeiro download o calendário mostra feriados sem internet. Falha de rede não bloqueia o calendário (card "Feriados indisponíveis" + "Tentar de novo"). |
 | D20 | 15/11/2026 | Ktor fixado em 3.3.3 e kotlinx-serialization em 1.9.0: são as últimas versões compatíveis com o Kotlin 2.2.10 do projeto. |
 | D21 | 15/11/2026 | Confirmado pela equipe: a **BrasilAPI (feriados) é a API externa da entrega final** (requisito "API externa com Ktor e corrotinas" da proposta). |
+| D22 | 16/11/2026 | APK de release assinado com chave guardada **fora do repositório** (`%USERPROFILE%\.todolist-keys\todolist-release.jks` + `keystore.properties`). O Gradle lê esse arquivo se existir; sem ele, o release sai sem assinatura. `*.jks`, `*.keystore` e `keystore.properties` estão no `.gitignore`. |
+| D23 | 16/11/2026 | Ícone do app = logo da tela de login (degradê azul #1F6FFF→#0B5CF5 + check branco), como ícone adaptativo vetorial (com versão monocromática). PNG 512×512 em `docs/icone/` e `entrega/`. |
+| D24 | 16/11/2026 | Consulta à BrasilAPI com prazo máximo garantido de 15 s (inclui o DNS). R8/minificação continua desligado no release (APK de ~14 MB) para não arriscar quebras com Ktor/serialization/Room perto da entrega. |
 | D6 | 15/11/2026 | API externa aprovada: **BrasilAPI — Feriados nacionais**, consumida com Ktor + corrotinas, exibida no calendário. Gratuita, sem chave/credencial. Implementação prevista na Etapa 5 (com tratamento de falha de rede: o app funciona normalmente sem ela). |
 
 ### Observação sobre D4 × D6
@@ -141,6 +146,24 @@ Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só re
 
 Testes unitários: **15 de 15 passando** (novos: `RemindersTest` 3, `HolidayRepositoryTest` 3 com MockEngine — sucesso + cache, erro 500 sem apagar cache, 404 e sem internet).
 
+## Etapa 7 — Testes e correções ✅
+
+- [x] Fluxos principais no **APK de release assinado** (Pixel_8, Android 14), conta nova: cadastro, criar 4 tarefas (com horário, categorias e subtarefas), editar, marcar subtarefa, concluir, calendário, estatísticas, ajustes.
+- [x] Persistência: force-stop e reabrir → sessão, tarefas, subtarefas e conclusão mantidas. Atualização do APK (`install -r`) manteve os dados.
+- [x] Campos vazios e inválidos: login vazio ("Informe seu e-mail/senha"), cadastro vazio, e-mail inválido, senha com menos de 6 caracteres, senhas diferentes; "Salvar tarefa" desativado sem título.
+- [x] Permissões concedidas e negadas (Etapa 5, passos 4–7).
+- [x] Sem internet: modo avião → "Sem conexão com a internet." + "Tentar de novo"; ao reconectar, feriados de 2027 carregados ("Confraternização mundial").
+- [x] Falhas na integração: DNS travado no emulador → depois de 15 s, "A BrasilAPI demorou para responder." (ver problema abaixo).
+- [x] Acessibilidade: descrições de ícones e dias do calendário conferidas pela árvore de acessibilidade ("Domingo, 15 de novembro, feriado"; "Remover subtarefa …"). Corrigido o plural "1 concluídas" → "1 concluída" no gráfico de estatísticas.
+- [x] Ícone novo conferido na tela inicial do emulador.
+- [x] Build final: `assembleRelease` assinado (v2, verificado com `apksigner`), **16 de 16** testes unitários passando (novo: chamada travada desiste no prazo). 0 crashes e 0 ANR no logcat durante os testes.
+
+**Entregáveis gerados:** `README.md` (instalação, requisitos, capturas, execução), `docs/screenshots/` (7 telas), `docs/icone/ic_launcher_512.png`, `entrega/TodoList-v1.0.apk` (assinado; não versionado no git) e `entrega/ic_launcher_512.png`.
+
+**Observações (comportamento atual, não são erros):**
+- A urgência compara só a **data**: tarefa de hoje com horário já passado continua "Vence hoje"/Urgente até o fim do dia (regra da Etapa 2).
+- Sair do formulário de tarefa pelo botão Voltar descarta o que foi digitado sem pedir confirmação.
+
 ### Ambiente e versões utilizadas
 
 | Item | Versão |
@@ -170,6 +193,8 @@ Se o build falhar em outra máquina por versão, usar como alternativa as versõ
 | 15/11/2026 | Telas internas sobrepostas à barra de status; botões e interruptores com lilás padrão do M3; vão nas barras de progresso. | Insets não aplicados no cabeçalho; cores `secondaryContainer`/`surfaceContainerHighest` não definidas no tema; `gapSize` padrão. | Corrigidos na revisão da Etapa 2 (insets no `ScreenHeader`, cores no tema, `gapSize = 0.dp`). |
 | 15/11/2026 | Testes unitários falhavam com `ClassNotFoundException`. | Caminho não-ASCII no classpath do processo de testes no Windows (confirmado: em caminho sem acentos os testes passam). | `build.gradle.kts` (raiz) redireciona a pasta `build` para `%USERPROFILE%\.todolist-build` quando o caminho tem acentos. O APK de debug fica em `%USERPROFILE%\.todolist-build\_app\outputs\apk\debug\`. |
 
+| 16/11/2026 | Calendário sem feriados e sem mensagem de erro (release no emulador). | O DNS do emulador parou de responder (DNS privado); o timeout do Ktor não interrompe a consulta de DNS, que é bloqueante, então a requisição ficava parada indefinidamente. | `HolidayRepository` passou a esperar a chamada com prazo próprio de 15 s (`withTimeout` sobre uma chamada em escopo separado) → mensagem "A BrasilAPI demorou para responder." Teste unitário simula a chamada travada. No emulador, `private_dns_mode off` restaurou a internet. |
+
 ## Como validar
 
 1. Abrir a pasta `Projeto ToDo` no Android Studio (File › Open).
@@ -188,3 +213,4 @@ Se o build falhar em outra máquina por versão, usar como alternativa as versõ
 | 15/11/2026 | Commits das Etapas 0–4 na `main` (sem push). D17–D20. Etapa 5: feriados BrasilAPI/Ktor com cache, lembretes WorkManager, permissão de notificação, sino com próximos lembretes, banco v2, 6 testes novos. |
 | 15/11/2026 | Push das Etapas 0–5 para o GitHub. D21. Testes da Etapa 5 no emulador (passos 1, 2, 3 e 5 aprovados; 4, 6 e 7 pendentes). |
 | 16/11/2026 | Testes 4, 6 e 7 da Etapa 5 aprovados no emulador (notificação, tarefa concluída, sair da conta). Etapa 5 encerrada. |
+| 16/11/2026 | Etapa 7: D22–D24, ícone, assinatura do release, correção do DNS travado, plural na acessibilidade, testes finais no APK assinado, README e capturas. |

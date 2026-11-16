@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -21,8 +23,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Assinatura do release: lida de keystore.properties FORA do repositório
+    // (%USERPROFILE%\.todolist-keys\). Sem esse arquivo o release é gerado sem assinatura.
+    val keystoreFile = file("${System.getProperty("user.home")}/.todolist-keys/keystore.properties")
+    val releaseSigning = if (keystoreFile.exists()) {
+        val props = Properties().apply { keystoreFile.inputStream().use { load(it) } }
+        signingConfigs.create("release") {
+            storeFile = file(props.getProperty("storeFile"))
+            storePassword = props.getProperty("storePassword")
+            keyAlias = props.getProperty("keyAlias")
+            keyPassword = props.getProperty("keyPassword")
+        }
+    } else null
+
     buildTypes {
         release {
+            signingConfig = releaseSigning
             optimization {
                 enable = false
             }

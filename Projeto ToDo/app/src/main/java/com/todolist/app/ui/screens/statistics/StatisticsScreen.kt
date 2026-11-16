@@ -197,7 +197,7 @@ private fun CompletedChart(state: StatisticsUiState) {
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clearAndSetSemantics { contentDescription = "$dayName: ${day.count} concluídas" },
+                        .clearAndSetSemantics { contentDescription = "$dayName: ${day.count} ${if (day.count == 1) "concluída" else "concluídas"}" },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text("${day.count}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
