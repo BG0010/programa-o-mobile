@@ -5,12 +5,11 @@
 
 ## Estado atual
 
-- **Etapa atual:** Etapa 5 implementada; testes no emulador quase completos (falta confirmar a chegada da notificação e o teste de troca de usuário — ver roteiro).
+- **Etapa atual:** Etapa 5 concluída e testada no emulador (7 de 7 cenários aprovados). Próxima: Etapa 7 (entrega final).
 - **Status geral:** App funcional com login local, tarefas/categorias por usuário (Room), tema black, feriados (BrasilAPI + Ktor, com cache offline) e lembretes (WorkManager).
 - **Progresso:** ~75% de implementação.
-- **Última atualização:** 15/11/2026.
+- **Última atualização:** 16/11/2026.
 - **Pendências principais:**
-  - Confirmar no emulador: notificação às 20:30 (UTC) da tarefa "Lembrete de teste" e ausência da tarefa concluída; teste de sair da conta (passos 4, 6 e 7).
   - Etapa 6 (Google Agenda/ClickUp) está fora do escopo pela D4 — registrar como não implementada.
   - Etapa 7: testes finais, README, relatório técnico, APK assinado e ícone (exigências da proposta do trabalho final).
 
@@ -123,7 +122,7 @@ Manuais no emulador Pixel_8 (instalação limpa):
 
 Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só respondiam ao toque na caixinha (linha inteira agora é tocável); saudação usava nome completo (agora primeiro nome); ícones da barra de status escuros no tema black.
 
-## Etapa 5 — Calendário, lembretes e estatísticas ✅ (código) · ⏳ (teste no aparelho)
+## Etapa 5 — Calendário, lembretes e estatísticas ✅
 
 - [x] Tarefas no calendário e consulta por data (desde a Etapa 2, agora com dados reais).
 - [x] **Feriados nacionais (BrasilAPI + Ktor)**: `data/remote/BrasilApiService` (timeout 10 s, `expectSuccess`, JSON tolerante a campos novos), `HolidayRepository` com cache no Room e mensagens de erro por tipo (sem internet, timeout, ano inexistente, servidor fora, resposta inválida). Ponto laranja na faixa semanal e card "Feriado nacional" no dia.
@@ -131,14 +130,14 @@ Problemas encontrados e corrigidos na revisão: subtarefa e interruptores só re
 - [x] Permissão `POST_NOTIFICATIONS` pedida ao ativar; negação explicada; interruptor aparece desligado se a permissão for revogada.
 - [x] Sino do cabeçalho mostra os próximos 5 lembretes e o estado das notificações (ícone diferente quando desativadas).
 - [x] Estatísticas com dados reais (desde a Etapa 4).
-- [ ] **Teste manual no emulador (15/11/2026)**:
+- [x] **Teste manual no emulador (15 e 16/11/2026)**:
   1. ✅ Migração v1→v2: banco montado no formato v1 (a partir de `schemas/1.json`) com conta, categorias, tarefa e subtarefa → após abrir a versão nova, login funciona e todos os dados estão presentes. (Os dados antigos do emulador tinham sido perdidos quando o sistema fechou o emulador por falta de memória.)
   2. ✅ Feriados reais da BrasilAPI: "Proclamação da República" em 15/11 e "Dia da consciência negra" em 20/11, com ponto laranja na faixa semanal.
   3. ✅ Modo avião: jan/2027 (não baixado) → "Sem conexão com a internet" + "Tentar de novo"; nov/2026 continua mostrando feriados (cache); internet de volta + "Tentar de novo" → "Confraternização mundial" em 01/01/2027.
-  4. ⏳ Permissão concedida, tarefa "Lembrete de teste" às 21:00 → sino mostra "Aviso às 20:30". Falta confirmar a chegada da notificação.
+  4. ✅ (16/11, refeito em conta nova — o emulador perdeu os dados de novo) Permissão concedida, tarefa "Lembrete A" às 23:40 → sino mostra "Aviso às 23:10"; às 23:10:01 chegou a notificação "Lembrete A — Vence hoje às 23:40".
   5. ✅ Permissão negada → "Permissão negada. Ative as notificações do TodoList nas configurações do Android."; segunda tentativa, permitindo → interruptor ligado.
-  6. ⏳ Tarefa concluída antes do aviso some da lista de próximos lembretes; falta confirmar que não gera notificação.
-  7. ⏳ Sair da conta → lembretes não disparam (a testar).
+  6. ✅ "Lembrete B" (mesmo horário) concluída antes do aviso → some do sino, só 1 agendamento no WorkManager e nenhuma notificação às 23:10.
+  7. ✅ "Lembrete C" com aviso às 23:15 → sair da conta cancela o agendamento (0 jobs no JobScheduler); às 23:16 nenhuma notificação nova. Nenhum crash no logcat.
 
 Testes unitários: **15 de 15 passando** (novos: `RemindersTest` 3, `HolidayRepositoryTest` 3 com MockEngine — sucesso + cache, erro 500 sem apagar cache, 404 e sem internet).
 
@@ -188,3 +187,4 @@ Se o build falhar em outra máquina por versão, usar como alternativa as versõ
 | 15/11/2026 | D12–D16. Etapas 3 e 4: login/cadastro local, Room (usuários, categorias, tarefas, subtarefas), DataStore, CRUD de tarefas e categorias, tema black, testes unitários e manuais. |
 | 15/11/2026 | Commits das Etapas 0–4 na `main` (sem push). D17–D20. Etapa 5: feriados BrasilAPI/Ktor com cache, lembretes WorkManager, permissão de notificação, sino com próximos lembretes, banco v2, 6 testes novos. |
 | 15/11/2026 | Push das Etapas 0–5 para o GitHub. D21. Testes da Etapa 5 no emulador (passos 1, 2, 3 e 5 aprovados; 4, 6 e 7 pendentes). |
+| 16/11/2026 | Testes 4, 6 e 7 da Etapa 5 aprovados no emulador (notificação, tarefa concluída, sair da conta). Etapa 5 encerrada. |
